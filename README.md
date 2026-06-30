@@ -2,7 +2,7 @@
 
 My first end-to-end ML project — a binary classifier that predicts whether a loan application will be approved, built from raw, messy data through to a properly validated model.
 
-This started as a guided project (Apna College AI/ML Prime Batch) and was then extended independently: fixing data leakage, adding stratified splits, tuning models to reduce overfitting, and validating everything with cross-validation.
+Built the full pipeline from scratch and then iterated on it independently: fixing data leakage, adding stratified splits, tuning models to reduce overfitting, and validating everything with cross-validation.
 
 ## Problem Statement
 
@@ -77,4 +77,4 @@ jupyter notebook loan-approval-predictor.ipynb
 
 ---
 
-Built by [Devansh Yelne](https://github.com/Devanshyelne) —  AI & ML student, learning ML by building and breaking things properly.
+Built by [Devansh Yelne](https://github.com/Devanshyelne) — 2nd year AI & ML student, learning ML by building and breaking things properly.
