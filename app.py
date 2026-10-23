@@ -70,6 +70,35 @@ def show_fig(fig: plt.Figure) -> None:
     plt.close(fig)
 
 
+@st.cache_data(show_spinner=False)
+def make_demo_csv_bytes() -> bytes:
+    """Synthetic demo data (fixed seed). Not real applicants; used only when no real CSV is present."""
+    rng = np.random.default_rng(RANDOM_STATE)
+    n = 600
+    income = rng.normal(55000, 15000, n).clip(15000, 150000).round()
+    credit = rng.normal(680, 60, n).clip(300, 850).round()
+    loan_amount = rng.normal(180000, 70000, n).clip(20000, 600000).round(-3)
+    term = rng.choice([60, 120, 180, 240, 360], n)
+    employment = rng.choice(["Salaried", "Self-Employed", "Unemployed"], n, p=[0.6, 0.3, 0.1])
+    area = rng.choice(["Urban", "Semiurban", "Rural"], n, p=[0.4, 0.35, 0.25])
+    dependents = rng.integers(0, 4, n)
+    emp_effect = np.select([employment == "Salaried", employment == "Unemployed"], [0.8, -1.5], default=0.0)
+    logit = 5.0 + 0.000015 * income + 0.008 * (credit - 650) - 2.0 * (loan_amount / income) + emp_effect - 0.2 * dependents
+    approved = np.where(rng.random(n) < 1 / (1 + np.exp(-logit)), "Yes", "No")
+    demo = pd.DataFrame({
+        "Applicant_ID": [f"APP{i:04d}" for i in range(1, n + 1)],
+        "Income": income,
+        "Credit_Score": credit,
+        "Loan_Amount": loan_amount,
+        "Loan_Term_Months": term,
+        "Dependents": dependents,
+        "Employment_Status": employment,
+        "Property_Area": area,
+        "Loan_Approved": approved,
+    })
+    return demo.to_csv(index=False).encode("utf-8")
+
+
 def encode_target(labels: pd.Series) -> tuple[pd.Series, dict[int, str]]:
     """Map a two-class label column to 0/1. The positive class is the 'approved' label."""
     cleaned = labels.astype(str).str.strip().str.lower()
@@ -169,12 +198,8 @@ elif DATA_PATH.exists():
     csv_bytes = DATA_PATH.read_bytes()
     source = f"Project dataset: {DATA_PATH.name}"
 else:
-    st.error(
-        f"Dataset not found at `{DATA_PATH.name}`. Place it in the project folder "
-        "next to app.py, or upload a CSV from the sidebar. The file needs a binary "
-        "approval column (for example `Loan_Approved` with Yes/No) and feature columns."
-    )
-    st.stop()
+    csv_bytes = make_demo_csv_bytes()
+    source = "Demo data (synthetic)"
 
 raw = load_csv(csv_bytes)
 target_guess = next((c for c in raw.columns if str(c).strip() in TARGET_CANDIDATES), raw.columns[-1])
@@ -190,6 +215,12 @@ except Exception as exc:  # show a readable error instead of a traceback
 page = st.sidebar.radio("Section", ["Overview", "Predict", "Data Explorer", "Model Performance", "About"])
 st.sidebar.caption(source)
 st.sidebar.caption("Educational estimates only. Not for real lending decisions.")
+
+if source.startswith("Demo"):
+    st.info(
+        "Showing synthetic demo data generated for this app. These are not real applicants, "
+        "so the results illustrate the workflow only. Upload your dataset from the sidebar to use real data."
+    )
 
 X, y, labels = bundle["X"], bundle["y"], bundle["labels"]
 test, cv_scores = bundle["test"], bundle["cv_scores"]
@@ -263,7 +294,7 @@ elif page == "Predict":
             st.progress(p_pos, text=f"Probability of '{labels[1]}': {p_pos:.1%}")
             st.caption("This is a model estimate from historical patterns, not a guaranteed decision.")
         with b:
-            kpi("Probability", f"{p_pos:.1%}", f"Threshold 50%")
+            kpi("Probability", f"{p_pos:.1%}", "Threshold 50%")
 
 elif page == "Data Explorer":
     st.title("Data explorer")
@@ -344,7 +375,7 @@ elif page == "About":
         """
 **Problem.** Predict whether a loan application is approved, to explore how applicant attributes relate to decisions.
 
-**Data.** The CSV in the project folder (or the file you upload). The target column is chosen in the sidebar. Identifier columns (for example `Applicant_ID`) are excluded from training.
+**Data.** The CSV in the project folder, a file you upload, or synthetic demo data if neither is present. The target column is chosen in the sidebar. Identifier columns (for example `Applicant_ID`) are excluded from training.
 
 **Preprocessing.** Numeric features: median imputation and standard scaling. Categorical features: most-frequent imputation and one-hot encoding. All steps live inside one scikit-learn `Pipeline`, so training and prediction use the same logic.
 
